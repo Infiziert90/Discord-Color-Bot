@@ -16,6 +16,9 @@ var AdminIDs = map[string]string{
 	"134750562062303232": "Infi",
 }
 
+var InviteLink = "https://discord.gg/V5vaWwr"
+var AutoKick = true
+
 var RoleList = map[string]int{
 	"SpringGreen4":    0x008B45,
 	"LightSlateBlue":  0x8470FF,
@@ -46,6 +49,12 @@ var RoleList = map[string]int{
 	"ZeonRed":         0xC22F50,
 	"NatsumeHair":     0xE67E95,
 	"HoloHair":        0xD58138,
+	"ChthollyBlue":    0x4C82C2,
+	"ChthollyRed":     0xE2455A,
+	"Gold":            0xFFD700,
+	"DarkSeaGreen":    0x8FBC8F,
+	"RemHair":         0xAFD7FC,
+	"RamHair":         0xF5A2B4,
 }
 
 var RoleNames []string
@@ -59,7 +68,8 @@ type Roles struct {
 	Name string
 }
 
-var CreatedRoles = map[string]map[string]Roles{}
+var CreatedRoles = map[string]map[string]Roles{}   // Key = ColorName
+var CreatedRolesID = map[string]map[string]Roles{} // Key = RoleID
 
 var FirstTime = true
 
@@ -108,6 +118,10 @@ func OnReady(session *discordgo.Session, Ready *discordgo.Ready) {
 }
 
 func OnMessage(session *discordgo.Session, msg *discordgo.MessageCreate) {
+	if msg.Author.ID == session.State.User.ID {
+		return
+	}
+
 	if strings.HasPrefix(msg.Content, "<<") {
 		Channel, _ := session.State.Channel(msg.ChannelID)
 		if strings.HasPrefix(msg.Content, "<<NewColor") {
@@ -130,6 +144,26 @@ func OnMessage(session *discordgo.Session, msg *discordgo.MessageCreate) {
 				}
 			}
 			session.ChannelMessageDelete(msg.ChannelID, msg.ID)
+		} else if strings.HasPrefix(msg.Content, "<<PreviewColor") {
+			if CheckChannel(Channel) {
+				RemoveColorFromMember(session, Channel.GuildID, session.State.User.ID)
+
+				SplitContent := strings.Split(msg.Content, " ")
+				if len(SplitContent) == 2 {
+					if _, ok := RoleList[SplitContent[1]]; ok {
+						PreviewRole(session, Channel.GuildID, SplitContent[1])
+						PreviewMessage, _ := session.ChannelMessageSend(msg.ChannelID, "Color: "+SplitContent[1])
+						go DeleteMessasgeAfterTime(session, PreviewMessage, 5)
+					} else {
+						UpdateMemberColorRandom(session, Channel.GuildID, session.State.User.ID)
+						session.ChannelMessageSend(msg.ChannelID, "Color not found, pls use <<PrintColors.")
+					}
+				} else {
+					UpdateMemberColorRandom(session, Channel.GuildID, session.State.User.ID)
+					session.ChannelMessageSend(msg.ChannelID, "Too many arguments, pls use <<Help.")
+				}
+			}
+			session.ChannelMessageDelete(msg.ChannelID, msg.ID)
 		} else if strings.HasPrefix(msg.Content, "<<PrintColors") {
 			if CheckChannel(Channel) {
 				var buffer bytes.Buffer
@@ -138,13 +172,15 @@ func OnMessage(session *discordgo.Session, msg *discordgo.MessageCreate) {
 				}
 				buffer.WriteString("<https://0x0.st/sHVa.png>")
 
-				session.ChannelMessageSend(msg.ChannelID, buffer.String())
+				HelpMessage, _ := session.ChannelMessageSend(msg.ChannelID, buffer.String())
+				go DeleteMessasgeAfterTime(session, HelpMessage, 5)
 			}
 			session.ChannelMessageDelete(msg.ChannelID, msg.ID)
 		} else if strings.HasPrefix(msg.Content, "<<Help") {
 			if CheckChannel(Channel) {
-				HelpString := "Help for Color-Bot\n <<PrintColors   'Get a list of all Colors'\n <<NewColor   " +
-					"'Get a random color'\n <<NewColor ColorName   'Get the color with the input name'"
+				HelpString := "Help for Color-Bot\n <<PrintColors   'Prints a list of all colors'\n <<NewColor   " +
+					"'Assign a random color to the current user'\n <<NewColor ColorName   'Assign the specified color to the current user'\n" +
+					"<<PreviewColor ColorName   'Assign the specified color to the bot'"
 				session.ChannelMessageSend(msg.ChannelID, HelpString)
 			}
 			session.ChannelMessageDelete(msg.ChannelID, msg.ID)
@@ -169,6 +205,9 @@ func OnMessage(session *discordgo.Session, msg *discordgo.MessageCreate) {
 
 func OnMemberJoin(session *discordgo.Session, Member *discordgo.GuildMemberAdd) {
 	UpdateMemberColorRandom(session, Member.GuildID, Member.User.ID)
+	if AutoKick {
+		go KickMember(session, Member.GuildID, Member.User.ID)
+	}
 }
 
 func CheckAdmin(UserID string) (bool) {
@@ -205,9 +244,11 @@ func loadRoles(session *discordgo.Session, GuildID string) {
 
 	// Initialise nested map with GuildID as key
 	CreatedRoles[GuildID] = map[string]Roles{}
+	CreatedRolesID[GuildID] = map[string]Roles{}
 	for _, Role := range GuildRoles {
 		if _, ok := RoleList[Role.Name]; ok {
 			CreatedRoles[GuildID][Role.Name] = Roles{Role.ID, Role.Name}
+			CreatedRolesID[GuildID][Role.ID] = Roles{Role.ID, Role.Name}
 		}
 	}
 }
@@ -215,6 +256,7 @@ func loadRoles(session *discordgo.Session, GuildID string) {
 func JoinedNewGuild(session *discordgo.Session, GuildID string) {
 	// Initialise nested map with GuildID as key
 	CreatedRoles[GuildID] = map[string]Roles{}
+	CreatedRolesID[GuildID] = map[string]Roles{}
 	fmt.Printf("Joined a new server: %s\n", GuildID)
 	CreateAllRoles(session, GuildID)
 }
@@ -268,6 +310,7 @@ func CreateColorRole(session *discordgo.Session, GuildID, Name string, Color int
 	fmt.Printf("Name: %s     Int: %d \n", Name, Color)
 	Role, _ := session.GuildRoleEdit(GuildID, role.ID, Name, Color, false, 0, false)
 	CreatedRoles[GuildID][Role.Name] = Roles{Role.ID, Role.Name}
+	CreatedRoles[GuildID][Role.ID] = Roles{Role.ID, Role.Name}
 }
 
 func RemoveColorFromMember(session *discordgo.Session, GuildID, MemberID string) {
@@ -279,4 +322,36 @@ func RemoveColorFromMember(session *discordgo.Session, GuildID, MemberID string)
 			}
 		}
 	}
+}
+
+func DeleteMessasgeAfterTime(session *discordgo.Session, Message *discordgo.Message, Time time.Duration) {
+	time.Sleep(Time * time.Minute)
+	session.ChannelMessageDelete(Message.ChannelID, Message.ID)
+}
+
+func PreviewRole(session *discordgo.Session, GuildID, RoleName string) {
+	session.GuildMemberRoleAdd(GuildID, session.State.User.ID, CreatedRoles[GuildID][RoleName].ID)
+}
+
+func KickMember(session *discordgo.Session, GuildID, MemberID string) {
+	time.Sleep(30 * time.Minute)
+
+	Member, err := session.GuildMember(GuildID, MemberID)
+	if err != nil {
+		fmt.Printf("Member already leaved.")
+		return
+	}
+
+	for _, RoleID := range Member.Roles {
+		if _, ok := RoleList[CreatedRolesID[GuildID][RoleID].Name]; ok {
+			continue
+		} else {
+			return
+		}
+	}
+
+	PrivateChannel, err := session.UserChannelCreate(MemberID)
+	fmt.Println(err)
+	session.ChannelMessageSend(PrivateChannel.ID, "You got autokicked from the server. Please read the welcome channel.\n"+InviteLink)
+	session.GuildMemberDeleteWithReason(GuildID, MemberID, "Not enough roles after 30min. Autokick is enabled.")
 }

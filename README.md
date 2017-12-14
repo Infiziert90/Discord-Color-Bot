@@ -21,6 +21,7 @@ All commands start with `<<`. Enter parameters after a space (see below for exam
 | PrintColors | Prints a list of all colors | |
 | NewColor | Assign a random color to the current user |  |
 | NewColor | Assign the specified color to the current user | ColorName |
+| PreviewColor | Assign the specified color to the bot | ColorName |
 
 ### Admin-only commands
 
