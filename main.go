@@ -10,15 +10,27 @@ import (
 	"math/rand"
 	"strings"
 	"bytes"
+	_ "image/png"
+	"image"
+	"github.com/lucasb-eyer/go-colorful"
+	"image/draw"
+	"log"
+	"image/png"
+	"strconv"
 )
 
+// Settings
 var AdminIDs = map[string]string{
 	"134750562062303232": "Infi",
+	"YOUR_ID":            "YOUR_NAME",
 }
 
-var InviteLink = "https://discord.gg/V5vaWwr"
-var AutoKick = true
+var BotToken = "YOUR_BOT_TOKEN"               // Your bot token
+var InviteLink = "https://discord.gg/V5vaWwr" // Your invite link
+var AutoKick = true                           // if true: member will get kicked after 30min (README.md for more info)
+var SpamChannel = "Channel_ID"                // Channel for color image spam
 
+// Stop
 var RoleList = map[string]int{
 	"SpringGreen4":    0x008B45,
 	"LightSlateBlue":  0x8470FF,
@@ -78,12 +90,60 @@ var HelpText = `Help for Color-Bot
 <<NewColor ColorName   "Assign the specified color to the current user"
 <<PreviewColor ColorName   "Assign the specified color to the bot"`
 
+// Create Preview Image
+func CreateImageWithColor(ColorInt int, ColorName string) {
+	DecimalColor := int64(ColorInt)
+	size := image.Rect(0, 0, 200, 100)
+	rgbaImage := image.NewRGBA(size)
+	c, _ := colorful.Hex(fmt.Sprintf("#%s", strconv.FormatInt(DecimalColor, 16)))
+	draw.Draw(rgbaImage, rgbaImage.Bounds(), &image.Uniform{c}, image.ZP, draw.Src)
+
+	f, err := os.Create(fmt.Sprintf("%s.png", ColorName))
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if err := png.Encode(f, rgbaImage); err != nil {
+		f.Close()
+		log.Fatal(err)
+	}
+
+	if err := f.Close(); err != nil {
+		log.Fatal(err)
+	}
+}
+
+func CreateImageEmbed(session *discordgo.Session, ColorName string) discordgo.MessageEmbed {
+	Embed := discordgo.MessageEmbed{Title: ColorName, Color: RoleList[ColorName]}
+	FileReader, _ := os.Open(fmt.Sprintf("%s.png", ColorName))
+	Msg, err := session.ChannelFileSend(SpamChannel, fmt.Sprintf("%s.png", ColorName), FileReader)
+	if err != nil {
+		log.Fatal(err)
+		return Embed
+	}
+	Image := discordgo.MessageEmbedImage{URL: Msg.Attachments[0].URL, Height: 100, Width: 200}
+	Embed.Image = &Image
+
+	return Embed
+}
+
+func init() {
+	if BotToken == "YOUR_BOT_TOKEN" {
+		panic("Default BotToken, pls change the settings in main.go and rebuild.")
+	} else if SpamChannel == "Channel_ID" {
+		panic("Default SpamChannel, pls change the settings in main.go and rebuild.")
+	}
+}
+
+// Main
 func main() {
+	rand.Seed(time.Now().UTC().UnixNano())
+
 	for key := range RoleList {
 		RoleNames = append(RoleNames, key)
 	}
 
-	discord, err := discordgo.New("Bot YOUR_TOKEN")
+	discord, err := discordgo.New(fmt.Sprintf("Bot %s", BotToken))
 	if err != nil {
 		fmt.Println("Error creating Discord session: ", err)
 		return
@@ -133,7 +193,7 @@ func OnMessage(session *discordgo.Session, msg *discordgo.MessageCreate) {
 
 	Channel, err := session.State.Channel(msg.ChannelID)
 	if err != nil {
-		fmt.Printf("Can't get the channel.")
+		fmt.Printf("Can't get the channel.\n")
 		fmt.Printf("Error:\n%s", err)
 		return
 	}
@@ -153,31 +213,24 @@ func OnMessage(session *discordgo.Session, msg *discordgo.MessageCreate) {
 					UpdateMemberColor(session, Channel.GuildID, msg.Author.ID, SplitContent[1])
 				} else {
 					UpdateMemberColorRandom(session, Channel.GuildID, msg.Author.ID)
-					SendMessageAndDeleteAfter(session, msg.ChannelID, "Color not found, pls use <<PrintColors.")
+					SendMessageAndDeleteAfterTime(session, msg.ChannelID, "Color not found, pls use <<PrintColors.")
 				}
 			} else {
 				UpdateMemberColorRandom(session, Channel.GuildID, msg.Author.ID)
-				SendMessageAndDeleteAfter(session, msg.ChannelID, "Too many arguments, pls use <<Help.")
+				SendMessageAndDeleteAfterTime(session, msg.ChannelID, "Too many arguments, pls use <<Help.")
 			}
 			session.ChannelMessageDelete(msg.ChannelID, msg.ID)
 		} else if strings.HasPrefix(msg.Content, "<<PreviewColor") {
-			err := RemoveColorFromMember(session, Channel.GuildID, session.State.User.ID)
-			if err {
-				return
-			}
-
 			SplitContent := strings.Split(msg.Content, " ")
 			if len(SplitContent) == 2 {
 				if _, ok := RoleList[SplitContent[1]]; ok {
-					PreviewRole(session, Channel.GuildID, SplitContent[1])
-					SendMessageAndDeleteAfter(session, msg.ChannelID, "Color: "+SplitContent[1])
+					Embed := PreviewRole(session, SplitContent[1])
+					SendEmbedAndDeleteAfterTime(session, msg.ChannelID, Embed)
 				} else {
-					UpdateMemberColorRandom(session, Channel.GuildID, session.State.User.ID)
-					SendMessageAndDeleteAfter(session, msg.ChannelID, "Color not found, pls use <<PrintColors.")
+					SendMessageAndDeleteAfterTime(session, msg.ChannelID, "Color not found, pls use <<PrintColors.")
 				}
 			} else {
-				UpdateMemberColorRandom(session, Channel.GuildID, session.State.User.ID)
-				SendMessageAndDeleteAfter(session, msg.ChannelID, "Too many arguments, pls use <<Help.")
+				SendMessageAndDeleteAfterTime(session, msg.ChannelID, "Too many arguments, pls use <<Help.")
 			}
 			session.ChannelMessageDelete(msg.ChannelID, msg.ID)
 		} else if strings.HasPrefix(msg.Content, "<<PrintColors") {
@@ -187,13 +240,12 @@ func OnMessage(session *discordgo.Session, msg *discordgo.MessageCreate) {
 			}
 			buffer.WriteString("Use `<<PreviewColor ColorName` for a preview.")
 
-			SendMessageAndDeleteAfter(session, msg.ChannelID, buffer.String())
+			SendMessageAndDeleteAfterTime(session, msg.ChannelID, buffer.String())
 			session.ChannelMessageDelete(msg.ChannelID, msg.ID)
 		} else if strings.HasPrefix(msg.Content, "<<Help") {
-			SendMessageAndDeleteAfter(session, msg.ChannelID, HelpText)
+			SendMessageAndDeleteAfterTime(session, msg.ChannelID, HelpText)
 			session.ChannelMessageDelete(msg.ChannelID, msg.ID)
 		}
-
 	}
 
 	if CheckAdmin(msg.Author.ID) {
@@ -213,7 +265,7 @@ func OnMessage(session *discordgo.Session, msg *discordgo.MessageCreate) {
 func OnMemberJoin(session *discordgo.Session, Member *discordgo.GuildMemberAdd) {
 	UpdateMemberColorRandom(session, Member.GuildID, Member.User.ID)
 	if AutoKick {
-		go KickMember(session, Member.GuildID, Member.User.ID)
+		go KickMemberAfterTime(session, Member.GuildID, Member.User.ID)
 	}
 }
 
@@ -246,6 +298,7 @@ func MemberChunkRequest(session *discordgo.Session, event *discordgo.GuildMember
 func loadRoles(session *discordgo.Session, GuildID string) {
 	GuildRoles, err := session.GuildRoles(GuildID)
 	if err != nil {
+		fmt.Printf("Error: %s\n", err)
 		panic("Can't find the server.")
 	}
 
@@ -276,7 +329,7 @@ func AddAllMembersColor(session *discordgo.Session, GuildID string) {
 func RemoveAllColors(session *discordgo.Session, GuildID string) {
 	GuildRoles, err := session.GuildRoles(GuildID)
 	if err != nil {
-		panic("Can't find the server.")
+		panic("Can't find the server.\n")
 	}
 
 	for _, Role := range GuildRoles {
@@ -291,7 +344,6 @@ func UpdateMemberColor(s *discordgo.Session, GuildID, MemberID, RoleName string)
 }
 
 func UpdateMemberColorRandom(s *discordgo.Session, GuildID, MemberID string) {
-	rand.Seed(time.Now().UTC().UnixNano())
 	key := rand.Intn(len(RoleList))
 	s.GuildMemberRoleAdd(GuildID, MemberID, CreatedRoles[GuildID][RoleNames[key]].ID)
 }
@@ -323,7 +375,7 @@ func CreateAllRoles(session *discordgo.Session, GuildID string) {
 func RemoveColorFromMember(session *discordgo.Session, GuildID, MemberID string) (bool) {
 	Member, err := session.GuildMember(GuildID, MemberID)
 	if err != nil {
-		fmt.Printf("Can't get the guild.")
+		fmt.Printf("Can't get the guild.\n")
 		fmt.Printf("Error:\n%s", err)
 		return true
 	}
@@ -336,16 +388,19 @@ func RemoveColorFromMember(session *discordgo.Session, GuildID, MemberID string)
 	return false
 }
 
-func PreviewRole(session *discordgo.Session, GuildID, RoleName string) {
-	session.GuildMemberRoleAdd(GuildID, session.State.User.ID, CreatedRoles[GuildID][RoleName].ID)
+func PreviewRole(session *discordgo.Session, RoleName string) discordgo.MessageEmbed {
+	CreateImageWithColor(RoleList[RoleName], RoleName)
+	Embed := CreateImageEmbed(session, RoleName)
+
+	return Embed
 }
 
-func KickMember(session *discordgo.Session, GuildID, MemberID string) {
+func KickMemberAfterTime(session *discordgo.Session, GuildID, MemberID string) {
 	time.Sleep(30 * time.Minute)
 
 	Member, err := session.GuildMember(GuildID, MemberID)
 	if err != nil {
-		fmt.Printf("Member already leaved.")
+		fmt.Printf("Member already leaved.\n")
 		return
 	}
 
@@ -364,7 +419,7 @@ func KickMember(session *discordgo.Session, GuildID, MemberID string) {
 
 	PrivateChannel, err := session.UserChannelCreate(MemberID)
 	if err != nil {
-		fmt.Printf("Can't send the message.")
+		fmt.Printf("Can't send the message.\n")
 		fmt.Printf("Error:\n%s", err)
 		return
 	}
@@ -372,10 +427,15 @@ func KickMember(session *discordgo.Session, GuildID, MemberID string) {
 	session.ChannelMessageSend(PrivateChannel.ID, "You got kicked from the server. Please read the welcome channel.\n"+InviteLink)
 }
 
-func SendMessageAndDeleteAfter(session *discordgo.Session, ChannelID, Content string) {
+func DeleteMessageAfterTime(session *discordgo.Session, Message *discordgo.Message, Time time.Duration) {
+	time.Sleep(Time * time.Minute)
+	session.ChannelMessageDelete(Message.ChannelID, Message.ID)
+}
+
+func SendMessageAndDeleteAfterTime(session *discordgo.Session, ChannelID, Content string) {
 	Message, err := session.ChannelMessageSend(ChannelID, Content)
 	if err != nil {
-		fmt.Printf("Can't send the message.")
+		fmt.Printf("Can't send the message.\n")
 		fmt.Printf("Error:\n%s", err)
 		return
 	}
@@ -383,7 +443,13 @@ func SendMessageAndDeleteAfter(session *discordgo.Session, ChannelID, Content st
 	go DeleteMessageAfterTime(session, Message, 5)
 }
 
-func DeleteMessageAfterTime(session *discordgo.Session, Message *discordgo.Message, Time time.Duration) {
-	time.Sleep(Time * time.Minute)
-	session.ChannelMessageDelete(Message.ChannelID, Message.ID)
+func SendEmbedAndDeleteAfterTime(session *discordgo.Session, ChannelID string, Embed discordgo.MessageEmbed) {
+	Message, err := session.ChannelMessageSendEmbed(ChannelID, &Embed)
+	if err != nil {
+		fmt.Printf("Can't send embed.\n")
+		fmt.Printf("Error:\n%s", err)
+		return
+	}
+
+	go DeleteMessageAfterTime(session, Message, 5)
 }

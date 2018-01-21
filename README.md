@@ -12,6 +12,12 @@ To run this bot, you will need:
 - Your own set of Discord credentials to use with the bot (see https://discordapp.com/developers/docs/intro)
 
 
+## Start
+
+- Open main.go
+- Change the settings
+
+
 ## Commands
 All commands start with `<<`. Enter parameters after a space (see below for examples).
 
@@ -34,6 +40,14 @@ All commands start with `<<`. Enter parameters after a space (see below for exam
 
 Example:
 `<<NewColor ColorName`
+
+## Auto Kick
+When `var AutoKick` is `true`:
+
+All new members will be kicked after 30 minutes if they do not have at
+least one additional role (i. e. a role that is not just a color).
+This is a fix for discord’s autokick because the bot gives each user a
+role, meaning they won’t be kicked automatically.
 
 ## Help?
 
