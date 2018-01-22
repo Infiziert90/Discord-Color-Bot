@@ -12,11 +12,10 @@ import (
 	"bytes"
 	_ "image/png"
 	"image"
-	"github.com/lucasb-eyer/go-colorful"
 	"image/draw"
 	"log"
 	"image/png"
-	"strconv"
+	"image/color"
 )
 
 // Settings
@@ -92,10 +91,12 @@ var HelpText = `Help for Color-Bot
 
 // Create Preview Image
 func CreateImageWithColor(ColorInt int, ColorName string) {
-	DecimalColor := int64(ColorInt)
 	size := image.Rect(0, 0, 200, 100)
 	rgbaImage := image.NewRGBA(size)
-	c, _ := colorful.Hex(fmt.Sprintf("#%s", strconv.FormatInt(DecimalColor, 16)))
+	red := uint8((ColorInt >> 16) & 0xff)
+	green := uint8((ColorInt >> 8) & 0xff)
+	blue := uint8(ColorInt & 0xff)
+	c := color.RGBA{R:red, G:green, B:blue, A:255}
 	draw.Draw(rgbaImage, rgbaImage.Bounds(), &image.Uniform{c}, image.ZP, draw.Src)
 
 	f, err := os.Create(fmt.Sprintf("%s.png", ColorName))
