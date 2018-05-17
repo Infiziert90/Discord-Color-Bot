@@ -36,10 +36,16 @@ All commands start with `<<`. Enter parameters after a space (see below for exam
 | NewServer | Generate all color roles on this server |  |
 | AddColorAllMember | Assigns a random color role to all current members | |
 | RemoveAllColors | Removes all color roles from the server |  |
+| ReloadColors | Add all new colors to your server |  |
 
 
 Example:
 `<<NewColor ColorName`
+
+## Adding new Colors
+In your config file, you can find a list named “Colors”, 
+where you can add new colors. Afterwards, use the command `<<ReloadColors` 
+to create the color role(s).
 
 ## Auto Kick
 When `var AutoKick` is `true`:
