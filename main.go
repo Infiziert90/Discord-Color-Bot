@@ -9,7 +9,6 @@ import (
 	"time"
 	"math/rand"
 	"strings"
-	"bytes"
 	"image"
 	"image/draw"
 	"log"
@@ -22,7 +21,7 @@ import (
 type Config struct {
 	BotToken string `yaml:"BotToken"`
 	InviteLink string `yaml:"InviteLink"`
-	AutoKick bool `yaml:"AutoKick"`
+	AutoKickOnServer map[string]string `yaml:"AutoKickOnServer"`
 	SpamChannel string `yaml:"SpamChannel"`
 	Admins map[string]string `yaml:"Admins"`
 	Colors map[string]int `yaml:"Colors"`
@@ -40,7 +39,7 @@ var (
 	CreatedRoles = map[string]map[string]Roles{}
 	FirstTime = true
 	HelpText = `Help for Color-Bot
-<<PrintColors   "Prints a list of all colors"
+<<PrintColors   https://nayu.moe/colors
 <<NewColor   "Assign a random color to the current user"
 <<NewColor ColorName   "Assign the specified color to the current user"
 <<PreviewColor ColorName   "Post a preview image of the color"`
@@ -162,13 +161,7 @@ func OnMessage(session *discordgo.Session, msg *discordgo.MessageCreate) {
 			}
 			session.ChannelMessageDelete(msg.ChannelID, msg.ID)
 		} else if strings.HasPrefix(msg.Content, "<<PrintColors") {
-			var buffer bytes.Buffer
-			for key := range config.Colors {
-				buffer.WriteString(key + "\n")
-			}
-			buffer.WriteString("Use `<<PreviewColor ColorName` for a preview.")
-
-			SendMessageAndDeleteAfterTime(session, msg.ChannelID, buffer.String())
+			SendMessageAndDeleteAfterTime(session, msg.ChannelID, "https://nayu.moe/colors")
 			session.ChannelMessageDelete(msg.ChannelID, msg.ID)
 		} else if strings.HasPrefix(msg.Content, "<<Help") {
 			SendMessageAndDeleteAfterTime(session, msg.ChannelID, HelpText)
@@ -197,7 +190,7 @@ func OnMessage(session *discordgo.Session, msg *discordgo.MessageCreate) {
 
 func OnMemberJoin(session *discordgo.Session, Member *discordgo.GuildMemberAdd) {
 	UpdateMemberColorRandom(session, Member.GuildID, Member.User.ID)
-	if config.AutoKick {
+	if _, ok := config.AutoKickOnServer[Member.GuildID]; ok {
 		go KickMemberAfterTime(session, Member.GuildID, Member.User.ID)
 	}
 }

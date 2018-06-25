@@ -24,17 +24,17 @@ All commands start with `<<`. Enter parameters after a space (see below for exam
 | Command | Description | Parameter(s) |
 | -------- | ----------- | ------------------ |
 | Help | Prints a list of all commands |  |
-| PrintColors | Prints a list of all colors | |
+| PrintColors | https://nayu.moe/colors | |
 | NewColor | Assign a random color to the current user |  |
 | NewColor | Assign the specified color to the current user | ColorName |
-| PreviewColor | Assign the specified color to the bot | ColorName |
+| PreviewColor | Post a preview image of the color | ColorName |
 
 ### Admin-only commands
 
 | Command | Description | Parameter(s) |
 | -------- | ----------- | ------------------ |
 | NewServer | Generate all color roles on this server |  |
-| AddColorAllMember | Assigns a random color role to all current members | |
+| AddColorToAllMember | Assigns a random color role to all current members | |
 | RemoveAllColors | Removes all color roles from the server |  |
 | ReloadColors | Add all new colors to your server |  |
 
@@ -48,7 +48,7 @@ where you can add new colors. Afterwards, use the command `<<ReloadColors`
 to create the color role(s).
 
 ## Auto Kick
-When `var AutoKick` is `true`:
+If you want it, just add your ServerID into `AutoKickOnServer`
 
 All new members will be kicked after 30 minutes if they do not have at
 least one additional role (i. e. a role that is not just a color).
