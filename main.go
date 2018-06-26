@@ -127,8 +127,8 @@ func OnMessage(session *discordgo.Session, msg *discordgo.MessageCreate) {
 
 	if CheckChannel(Channel) {
 		if strings.HasPrefix(msg.Content, "<<NewColor") {
-			err := RemoveColorFromMember(session, Channel.GuildID, msg.Author.ID)
-			if err {
+			resp := RemoveColorFromMember(session, Channel.GuildID, msg.Author.ID)
+			if resp {
 				return
 			}
 
@@ -136,8 +136,11 @@ func OnMessage(session *discordgo.Session, msg *discordgo.MessageCreate) {
 			if len(SplitContent) == 1 {
 				UpdateMemberColorRandom(session, Channel.GuildID, msg.Author.ID)
 			} else if len(SplitContent) == 2 {
-				if _, ok := config.Colors[SplitContent[1]]; ok {
+				if _, ok := CreatedRoles[Channel.GuildID][SplitContent[1]]; ok {
 					UpdateMemberColor(session, Channel.GuildID, msg.Author.ID, SplitContent[1])
+				}else if _, ok := config.Colors[SplitContent[1]]; ok {
+					UpdateMemberColorRandom(session, Channel.GuildID, msg.Author.ID)
+					SendMessageAndDeleteAfterTime(session, msg.ChannelID, "Color not found available on this server.")
 				} else {
 					UpdateMemberColorRandom(session, Channel.GuildID, msg.Author.ID)
 					SendMessageAndDeleteAfterTime(session, msg.ChannelID, "Color not found, pls use <<PrintColors.")
@@ -263,13 +266,17 @@ func RemoveAllColors(session *discordgo.Session, GuildID string) {
 	}
 }
 
-func UpdateMemberColor(s *discordgo.Session, GuildID, MemberID, RoleName string) {
-	s.GuildMemberRoleAdd(GuildID, MemberID, CreatedRoles[GuildID][RoleName].ID)
+func UpdateMemberColor(session *discordgo.Session, GuildID, MemberID, RoleName string) {
+	err := session.GuildMemberRoleAdd(GuildID, MemberID, CreatedRoles[GuildID][RoleName].ID)
+	if err != nil {
+		LoadRoles(session, GuildID)
+		UpdateMemberColorRandom(session, GuildID, MemberID)
+	}
 }
 
-func UpdateMemberColorRandom(s *discordgo.Session, GuildID, MemberID string) {
+func UpdateMemberColorRandom(session *discordgo.Session, GuildID, MemberID string) {
 	key := rand.Intn(len(config.Colors))
-	s.GuildMemberRoleAdd(GuildID, MemberID, CreatedRoles[GuildID][RoleNames[key]].ID)
+	session.GuildMemberRoleAdd(GuildID, MemberID, CreatedRoles[GuildID][RoleNames[key]].ID)
 }
 
 func CreateColorRole(session *discordgo.Session, GuildID, Name string, Color int) {
