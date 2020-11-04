@@ -1,31 +1,30 @@
 package main
 
 import (
-	"github.com/bwmarrin/discordgo"
 	"fmt"
+	"github.com/bwmarrin/discordgo"
+	"gopkg.in/yaml.v2"
+	"image"
+	"image/color"
+	"image/draw"
+	"image/png"
+	"io/ioutil"
+	"log"
+	"math/rand"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
-	"math/rand"
-	"strings"
-	"image"
-	"image/draw"
-	"log"
-	"image/png"
-	"image/color"
-	"gopkg.in/yaml.v2"
-	"io/ioutil"
 )
 
 type Config struct {
-	BotToken string `yaml:"BotToken"`
-	InviteLink string `yaml:"InviteLink"`
+	BotToken         string            `yaml:"BotToken"`
+	InviteLink       string            `yaml:"InviteLink"`
 	AutoKickOnServer map[string]string `yaml:"AutoKickOnServer"`
-	SpamChannel string `yaml:"SpamChannel"`
-	Admins map[string]string `yaml:"Admins"`
-	Colors map[string]int `yaml:"Colors"`
-
+	SpamChannel      string            `yaml:"SpamChannel"`
+	Admins           map[string]string `yaml:"Admins"`
+	Colors           map[string]int    `yaml:"Colors"`
 }
 
 type Roles struct {
@@ -34,16 +33,17 @@ type Roles struct {
 }
 
 var (
-	config Config
-	RoleNames []string
+	config       Config
+	RoleNames    []string
 	CreatedRoles = map[string]map[string]Roles{}
-	FirstTime = true
-	HelpText = `Help for Color-Bot
+	FirstTime    = true
+	HelpText     = `Help for Color-Bot
 <<PrintColors   https://nayu.moe/colors
 <<NewColor   "Assign a random color to the current user"
 <<NewColor ColorName   "Assign the specified color to the current user"
 <<PreviewColor ColorName   "Post a preview image of the color"`
 )
+
 func init() {
 	createConfig(&config)
 
@@ -79,6 +79,10 @@ func main() {
 	discord.AddHandler(OnMessage)
 	discord.AddHandler(OnMemberJoin)
 	discord.AddHandler(MemberChunkRequest)
+
+	// We need information about guilds (which includes their channels),
+	// messages and voice states.
+	discord.Identify.Intents = discordgo.MakeIntent(discordgo.IntentsAll)
 
 	err = discord.Open()
 	if err != nil {
@@ -138,7 +142,7 @@ func OnMessage(session *discordgo.Session, msg *discordgo.MessageCreate) {
 			} else if len(SplitContent) == 2 {
 				if _, ok := CreatedRoles[Channel.GuildID][SplitContent[1]]; ok {
 					UpdateMemberColor(session, Channel.GuildID, msg.Author.ID, SplitContent[1])
-				}else if _, ok := config.Colors[SplitContent[1]]; ok {
+				} else if _, ok := config.Colors[SplitContent[1]]; ok {
 					UpdateMemberColorRandom(session, Channel.GuildID, msg.Author.ID)
 					SendMessageAndDeleteAfterTime(session, msg.ChannelID, "Color not found available on this server.")
 				} else {
@@ -198,14 +202,14 @@ func OnMemberJoin(session *discordgo.Session, Member *discordgo.GuildMemberAdd) 
 	}
 }
 
-func CheckAdmin(UserID string) (bool) {
+func CheckAdmin(UserID string) bool {
 	if _, ok := config.Admins[UserID]; ok {
 		return true
 	}
 	return false
 }
 
-func CheckChannel(Channel *discordgo.Channel) (bool) {
+func CheckChannel(Channel *discordgo.Channel) bool {
 	if Channel.GuildID == "221919789017202688" {
 		if Channel.ID == "300947822956773376" {
 			return true
@@ -236,7 +240,7 @@ func LoadRoles(session *discordgo.Session, GuildID string) {
 	for _, Role := range GuildRoles {
 		if _, ok := config.Colors[Role.Name]; ok {
 			CreatedRoles[GuildID][Role.Name] = Roles{Role.ID, Role.Name}
-			CreatedRoles[GuildID][Role.ID]   = Roles{Role.ID, Role.Name}
+			CreatedRoles[GuildID][Role.ID] = Roles{Role.ID, Role.Name}
 		}
 	}
 }
@@ -250,7 +254,7 @@ func JoinedNewGuild(session *discordgo.Session, GuildID string) {
 
 func AddColorToAllMember(session *discordgo.Session, GuildID string) {
 	fmt.Printf("Updating all member with new a color.\n")
-	session.RequestGuildMembers(GuildID, "", 0)
+	session.RequestGuildMembers(GuildID, "", 0, true)
 }
 
 func RemoveAllColors(session *discordgo.Session, GuildID string) {
@@ -288,7 +292,7 @@ func CreateColorRole(session *discordgo.Session, GuildID, Name string, Color int
 	fmt.Printf("Name: %s     Int: %d \n", Name, Color)
 	Role, _ := session.GuildRoleEdit(GuildID, role.ID, Name, Color, false, 0, false)
 	CreatedRoles[GuildID][Role.Name] = Roles{Role.ID, Role.Name}
-	CreatedRoles[GuildID][Role.ID]   = Roles{Role.ID, Role.Name}
+	CreatedRoles[GuildID][Role.ID] = Roles{Role.ID, Role.Name}
 }
 
 func CreateNewRoles(session *discordgo.Session, GuildID string) {
@@ -305,7 +309,7 @@ func CreateAllRoles(session *discordgo.Session, GuildID string) {
 	}
 }
 
-func RemoveColorFromMember(session *discordgo.Session, GuildID, MemberID string) (bool) {
+func RemoveColorFromMember(session *discordgo.Session, GuildID, MemberID string) bool {
 	Member, err := session.GuildMember(GuildID, MemberID)
 	if err != nil {
 		fmt.Printf("Can't get the guild.\n")
@@ -335,7 +339,7 @@ func CreateImageWithColor(ColorInt int, ColorName string) {
 	red := uint8((ColorInt >> 16) & 0xff)
 	green := uint8((ColorInt >> 8) & 0xff)
 	blue := uint8(ColorInt & 0xff)
-	c := color.RGBA{R:red, G:green, B:blue, A:255}
+	c := color.RGBA{R: red, G: green, B: blue, A: 255}
 	draw.Draw(rgbaImage, rgbaImage.Bounds(), &image.Uniform{c}, image.ZP, draw.Src)
 
 	f, err := os.Create(ColorName + ".png")
@@ -356,7 +360,7 @@ func CreateImageWithColor(ColorInt int, ColorName string) {
 func CreateImageEmbed(session *discordgo.Session, ColorName string) discordgo.MessageEmbed {
 	Embed := discordgo.MessageEmbed{Title: ColorName, Color: config.Colors[ColorName]}
 	FileReader, _ := os.Open(ColorName + ".png")
-	Msg, err := session.ChannelFileSend(config.SpamChannel, ColorName + ".png", FileReader)
+	Msg, err := session.ChannelFileSend(config.SpamChannel, ColorName+".png", FileReader)
 	if err != nil {
 		log.Fatal(err)
 		return Embed
@@ -396,7 +400,7 @@ func KickMemberAfterTime(session *discordgo.Session, GuildID, MemberID string) {
 		return
 	}
 
-	session.ChannelMessageSend(PrivateChannel.ID, "You got kicked from the server. Please read the welcome channel.\n" + config.InviteLink)
+	session.ChannelMessageSend(PrivateChannel.ID, "You got kicked from the server. Please read the welcome channel.\n"+config.InviteLink)
 }
 
 func DeleteMessageAfterTime(session *discordgo.Session, Message *discordgo.Message, Time time.Duration) {
