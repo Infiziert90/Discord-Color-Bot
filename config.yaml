@@ -1,11 +1,11 @@
 BotToken: "YOUR_BOT_TOKEN"
-InviteLink: "https://discord.gg/piracy"
+InviteLink: "https://discord.gg/V5vaWwr"
 AutoKickOnServer: {
   "ServerID": "ServerName"
 }
 SpamChannel: "Channel_ID"
 Admins: {
-  "362141240969527296": "SeaSmoke",
+  "134750562062303232": "Infi",
   "UserID": "Username",
 }
 Colors: {
