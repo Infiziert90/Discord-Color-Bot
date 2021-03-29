@@ -101,7 +101,7 @@ func main() {
 }
 
 func OnReady(session *discordgo.Session, Ready *discordgo.Ready) {
-	session.UpdateStatus(0, "Perfect Color!")
+	session.UpdateGameStatus(0, "Perfect Color!")
 
 	if FirstTime {
 		for _, Guild := range Ready.Guilds {
