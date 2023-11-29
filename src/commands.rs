@@ -8,8 +8,9 @@ use crate::{
 use poise::{
     futures_util::{Stream, StreamExt},
     serenity_prelude::futures,
+    CreateReply,
 };
-use serenity::builder::{CreateAttachment, CreateMessage};
+use serenity::builder::CreateAttachment;
 
 async fn autocomplete_name<'a>(_ctx: PoiseContext<'_>, partial: &'a str) -> impl Stream<Item = String> + 'a {
     futures::stream::iter(&CONFIG.colors)
@@ -50,8 +51,12 @@ pub async fn preview(
 ) -> Result<(), Error> {
     if let Some(color) = CONFIG.colors.get(&choice) {
         let paths = [CreateAttachment::bytes(create_image(&color), format!("{choice}.png"))];
-        ctx.channel_id().send_files(ctx.http(), paths, CreateMessage::new().content("")).await?;
-        ctx.say("Preview sent").await?;
+        ctx.send(CreateReply {
+            content: Some("Preview:".into()),
+            attachments: paths.to_vec().into(),
+            ..Default::default()
+        })
+        .await?;
     } else {
         ctx.say("Unknown color ...").await?;
     }
