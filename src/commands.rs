@@ -50,7 +50,6 @@ pub async fn preview(
 ) -> Result<(), Error> {
     if let Some(color) = CONFIG.colors.get(&choice) {
         let paths = [CreateAttachment::bytes(create_image(&color), format!("{choice}.png"))];
-
         ctx.channel_id().send_files(ctx.http(), paths, CreateMessage::new().content("")).await?;
         ctx.say("Preview send").await?;
     } else {
