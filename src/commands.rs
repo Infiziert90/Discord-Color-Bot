@@ -1,10 +1,10 @@
-use crate::create::create_image;
-
 use crate::{
     config::CONFIG,
+    create::create_image,
     role::{process_color, random_color},
     Error, PoiseContext,
 };
+
 use poise::{
     futures_util::{Stream, StreamExt},
     serenity_prelude::futures,

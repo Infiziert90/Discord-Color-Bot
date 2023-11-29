@@ -7,13 +7,12 @@ mod role;
 
 use crate::{config::CONFIG, role::random_color};
 
+use poise::serenity_prelude as serenity;
 use serenity::{
     all::{ActivityData, ClientBuilder, GatewayIntents, Permissions},
     builder::{CreateMessage, EditRole},
 };
 use std::{sync::Arc, time::Duration};
-
-use poise::serenity_prelude as serenity;
 
 type Error = Box<dyn std::error::Error + Send + Sync>;
 type PoiseContext<'a> = poise::Context<'a, Data, Error>;
