@@ -1,7 +1,6 @@
 array_width          = 95
 attr_fn_like_width   = 120
 chain_width          = 120
-combine_control_expr = false
 comment_width        = 120
 edition              = "2021"
 max_width            = 120
