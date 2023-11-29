@@ -11,6 +11,7 @@ use poise::serenity_prelude as serenity;
 use serenity::{
     all::{ActivityData, ClientBuilder, GatewayIntents, Permissions},
     builder::{CreateMessage, EditRole},
+    FullEvent,
 };
 use std::{sync::Arc, time::Duration};
 
@@ -28,9 +29,7 @@ async fn on_error(error: poise::FrameworkError<'_, Data, Error>) {
             println!("Error in command `{}`: {:?}", ctx.command().name, error,);
         }
         error => {
-            if let Err(e) = poise::builtins::on_error(error).await {
-                println!("Error while handling error: {}", e)
-            }
+            poise::builtins::on_error(error).await.unwrap_or_else(|e| println!("Error while handling error: {}", e))
         }
     }
 }
@@ -42,7 +41,7 @@ async fn event_handler(
     _: &Data,
 ) -> Result<(), Error> {
     match event {
-        serenity::FullEvent::Ready { data_about_bot, .. } => {
+        FullEvent::Ready { data_about_bot, .. } => {
             println!("Logged in as {}", data_about_bot.user.name);
             ctx.set_activity(Some(ActivityData::playing("Perfect Color!")));
 
@@ -51,23 +50,20 @@ async fn event_handler(
                     let existing_roles: Vec<String> =
                         guild.roles(&ctx.http).await?.values().map(|role| role.name.clone()).collect();
                     for (name, &color) in &CONFIG.colors {
-                        if existing_roles.contains(name) {
-                            continue;
+                        if !existing_roles.contains(name) {
+                            let r = EditRole::new().name(name).colour(color).permissions(Permissions::empty());
+                            match guild.create_role(&ctx.http, r).await {
+                                Ok(_) => {}
+                                Err(e) => {
+                                    println!(
+                                        "Error while creating colors on this server {} - {}, {e:?}",
+                                        guild.get(),
+                                        guild.name(&ctx.cache).unwrap()
+                                    );
+                                    break;
+                                }
+                            };
                         }
-
-                        let r = EditRole::new().name(name).colour(color).permissions(Permissions::empty());
-                        match guild.create_role(&ctx.http, r).await {
-                            Ok(_) => {}
-                            Err(e) => {
-                                println!(
-                                    "Error while creating colors on this server {} - {}, {}",
-                                    guild.get(),
-                                    guild.name(&ctx.cache).unwrap(),
-                                    e
-                                );
-                                break;
-                            }
-                        };
                     }
                 }
                 unsafe {
@@ -76,7 +72,7 @@ async fn event_handler(
             }
             println!("Bot is ready")
         }
-        serenity::FullEvent::GuildMemberAddition { new_member } => {
+        FullEvent::GuildMemberAddition { new_member } => {
             if let Err(e) = random_color(&ctx, &new_member).await {
                 return Ok(println!("Error while member join, {}", e));
             }
@@ -88,10 +84,8 @@ async fn event_handler(
 
             match new_member.roles(&ctx.cache) {
                 Some(roles) => {
-                    for role in roles {
-                        if !CONFIG.colors.contains_key(role.name.as_str()) {
-                            return Ok(());
-                        }
+                    if roles.iter().any(|role| CONFIG.colors.contains_key(&role.name)) {
+                        return Ok(());
                     }
                 }
                 None => return Ok(eprintln!("Unable to retrieve roles from cache")),
@@ -108,11 +102,11 @@ async fn event_handler(
                 )
                 .await
             {
-                return Ok(println!("Unable to message user in private chat, {}", e));
+                return Ok(println!("Unable to message user in private chat, {e:?}"));
             };
 
             if let Err(e) = new_member.kick_with_reason(&ctx.http, "User hasn't picked a role after 30 minutes").await {
-                return Ok(println!("Unable to kick user after 30 minutes, {}", e));
+                return Ok(println!("Unable to kick user after 30 minutes, {e:?}"));
             }
         }
         _ => {}
