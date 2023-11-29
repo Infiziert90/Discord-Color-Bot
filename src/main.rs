@@ -1,17 +1,17 @@
 #![warn(clippy::str_to_string)]
 
 mod commands;
+mod config;
 mod create;
 mod role;
-mod config;
 
-use crate::config::CONFIG;
-use crate::role::random_color;
+use crate::{config::CONFIG, role::random_color};
 
-use std::sync::Arc;
-use std::time::Duration;
-use serenity::all::{ActivityData, ClientBuilder, GatewayIntents, Permissions};
-use serenity::builder::{CreateMessage, EditRole};
+use serenity::{
+    all::{ActivityData, ClientBuilder, GatewayIntents, Permissions},
+    builder::{CreateMessage, EditRole},
+};
+use std::{sync::Arc, time::Duration};
 
 use poise::serenity_prelude as serenity;
 
@@ -49,7 +49,8 @@ async fn event_handler(
 
             if unsafe { FIRST_TIME } {
                 for guild in ctx.cache.guilds() {
-                    let existing_roles: Vec<String> = guild.roles(&ctx.http).await?.values().map(|role| role.name.clone()).collect();
+                    let existing_roles: Vec<String> =
+                        guild.roles(&ctx.http).await?.values().map(|role| role.name.clone()).collect();
                     for (name, &color) in &CONFIG.colors {
                         if existing_roles.contains(name) {
                             continue;
@@ -59,13 +60,20 @@ async fn event_handler(
                         match guild.create_role(&ctx.http, r).await {
                             Ok(_) => {}
                             Err(e) => {
-                                println!("Error while creating colors on this server {} - {}, {}", guild.get(), guild.name(&ctx.cache).unwrap(), e);
+                                println!(
+                                    "Error while creating colors on this server {} - {}, {}",
+                                    guild.get(),
+                                    guild.name(&ctx.cache).unwrap(),
+                                    e
+                                );
                                 break;
                             }
                         };
                     }
                 }
-                unsafe { FIRST_TIME = false; }
+                unsafe {
+                    FIRST_TIME = false;
+                }
             }
             println!("Bot is ready")
         }
@@ -86,12 +94,22 @@ async fn event_handler(
                             return Ok(());
                         }
                     }
-                },
-                None => return Ok(eprintln!("Unable to retrieve roles from cache"))
+                }
+                None => return Ok(eprintln!("Unable to retrieve roles from cache")),
             }
 
-            if let Err(e) = new_member.user.dm(&ctx.http, CreateMessage::new().content(format!("You got kicked from the server.\nPlease read the welcome channel for more information\n{}", CONFIG.invite_link))).await {
-                    return Ok(println!("Unable to message user in private chat, {}", e));
+            if let Err(e) = new_member
+                .user
+                .dm(
+                    &ctx.http,
+                    CreateMessage::new().content(format!(
+                        "You got kicked from the server.\nPlease read the welcome channel for more information\n{}",
+                        CONFIG.invite_link
+                    )),
+                )
+                .await
+            {
+                return Ok(println!("Unable to message user in private chat, {}", e));
             };
 
             if let Err(e) = new_member.kick_with_reason(&ctx.http, "User hasn't picked a role after 30 minutes").await {
@@ -121,9 +139,7 @@ async fn main() {
         },
         on_error: |error| Box::pin(on_error(error)),
         skip_checks_for_owners: false,
-        event_handler: |ctx, event, framework, data| {
-            Box::pin(event_handler(ctx, event, framework, data))
-        },
+        event_handler: |ctx, event, framework, data| Box::pin(event_handler(ctx, event, framework, data)),
         ..Default::default()
     };
 
@@ -131,9 +147,9 @@ async fn main() {
         .setup(move |ctx, _ready, framework| {
             Box::pin(async move {
                 poise::builtins::register_globally(ctx, &framework.options().commands)
-                .await
-                .map_err(|e| e.into())
-                .map(|_| Data {})
+                    .await
+                    .map_err(|e| e.into())
+                    .map(|_| Data {})
             })
         })
         .options(options)

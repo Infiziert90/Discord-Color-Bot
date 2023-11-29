@@ -7,7 +7,7 @@ pub fn create_image(color: &u64) -> Vec<u8> {
 
     let mut imgbuf = image::ImageBuffer::new(200, 100);
     for (_, _, pixel) in imgbuf.enumerate_pixels_mut() {
-        *pixel = image::Rgb([red,green,blue]);
+        *pixel = image::Rgb([red, green, blue]);
     }
 
     let mut bytes: Vec<u8> = Vec::new();

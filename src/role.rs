@@ -1,14 +1,13 @@
-use crate::{Error, PoiseContext};
-use crate::config::CONFIG;
+use crate::{config::CONFIG, Error, PoiseContext};
 
-use std::collections::HashMap;
-use std::hash::Hash;
-use rand::thread_rng;
-use serenity::http::CacheHttp;
-use rand::seq::IteratorRandom;
-use serenity::all::{Member, Permissions};
-use serenity::builder::EditRole;
-use serenity::prelude::Context;
+use rand::{seq::IteratorRandom, thread_rng};
+use serenity::{
+    all::{Member, Permissions},
+    builder::EditRole,
+    http::CacheHttp,
+    prelude::Context,
+};
+use std::{collections::HashMap, hash::Hash};
 
 fn rand_hash<K: Eq + Hash, V>(hash: &HashMap<K, V>) -> &K {
     hash.keys().choose(&mut thread_rng()).unwrap()
@@ -19,13 +18,13 @@ pub async fn random_color(ctx: &Context, member: &Member) -> Result<(), Error> {
 
     let guild = match member.guild_id.to_guild_cached(&ctx.cache) {
         Some(g) => g.clone(),
-        None => return Ok(())
+        None => return Ok(()),
     };
 
     let r = EditRole::new().name(choice).colour(CONFIG.colors[choice]).permissions(Permissions::empty());
     let role_id = match guild.role_by_name(choice) {
         Some(role) => role.id,
-        None => guild.create_role(&ctx.http, r).await.unwrap().id
+        None => guild.create_role(&ctx.http, r).await.unwrap().id,
     };
 
     match member.roles(&ctx.cache) {
@@ -43,16 +42,16 @@ pub async fn random_color(ctx: &Context, member: &Member) -> Result<(), Error> {
     Ok(member.add_role(&ctx.http, role_id).await?)
 }
 
-pub async fn process_color(ctx: PoiseContext<'_>, choice: String) -> Result<(), Error> {
+pub async fn process_color(ctx: PoiseContext<'_>, choice: &str) -> Result<(), Error> {
     let guild = match ctx.guild() {
         Some(guild) => guild.clone(),
-        None => return Ok(eprintln!("Can't find server ..."))
+        None => return Ok(eprintln!("Can't find server ...")),
     };
 
-    let r = EditRole::new().name(&choice).colour(CONFIG.colors[&choice]).permissions(Permissions::empty());
-    let role_id = match guild.role_by_name(&choice) {
+    let r = EditRole::new().name(choice).colour(CONFIG.colors[choice]).permissions(Permissions::empty());
+    let role_id = match guild.role_by_name(choice) {
         Some(role) => role.id,
-        None => guild.create_role(ctx.http(), r).await?.id
+        None => guild.create_role(ctx.http(), r).await?.id,
     };
 
     let m = ctx.author_member().await.unwrap();

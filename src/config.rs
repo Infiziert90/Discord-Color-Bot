@@ -1,6 +1,6 @@
-use std::collections::HashMap;
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
 pub struct Config {
@@ -13,7 +13,7 @@ pub struct Config {
     #[serde(alias = "Admins")]
     pub admins: HashMap<String, String>,
     #[serde(alias = "Colors")]
-    pub colors: HashMap<String, u64>
+    pub colors: HashMap<String, u64>,
 }
 
 lazy_static! {
