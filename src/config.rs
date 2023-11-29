@@ -6,11 +6,11 @@ use std::collections::HashMap;
 pub struct Config {
     #[serde(alias = "BotToken")]
     pub bot_token: String,
-    #[serde(alias = "InviteLink")]
+    #[serde(alias = "InviteLink", default)]
     pub invite_link: String,
-    #[serde(alias = "AutoKickOnServer")]
+    #[serde(alias = "AutoKickOnServer", default)]
     pub auto_kick: HashMap<String, String>,
-    #[serde(alias = "Admins")]
+    #[serde(alias = "Admins", default)]
     pub admins: HashMap<String, String>,
     #[serde(alias = "Colors")]
     pub colors: HashMap<String, u64>,
