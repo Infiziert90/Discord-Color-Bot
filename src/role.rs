@@ -5,15 +5,13 @@ use std::collections::HashMap;
 use std::hash::Hash;
 use rand::thread_rng;
 use serenity::http::CacheHttp;
-use rand::seq::{IteratorRandom};
+use rand::seq::IteratorRandom;
 use serenity::all::{Member, Permissions};
 use serenity::builder::EditRole;
 use serenity::prelude::Context;
 
 fn rand_hash<K: Eq + Hash, V>(hash: &HashMap<K, V>) -> &K {
-    let key = hash.keys().choose(&mut thread_rng()).unwrap();
-
-    key
+    hash.keys().choose(&mut thread_rng()).unwrap()
 }
 
 pub async fn random_color(ctx: &Context, member: &Member) -> Result<(), Error> {
@@ -24,22 +22,17 @@ pub async fn random_color(ctx: &Context, member: &Member) -> Result<(), Error> {
         None => return Ok(())
     };
 
-    let r = EditRole::new().name(choice.as_str()).colour(CONFIG.colors[choice]).permissions(Permissions::empty());
-    let role_id = match guild.role_by_name(choice.as_str()) {
+    let r = EditRole::new().name(choice).colour(CONFIG.colors[choice]).permissions(Permissions::empty());
+    let role_id = match guild.role_by_name(choice) {
         Some(role) => role.id,
-        None => {
-            let r = guild.create_role(&ctx.http, r).await.unwrap();
-
-            r.id
-        }
+        None => guild.create_role(&ctx.http, r).await.unwrap().id
     };
 
-    let m = member.clone();
     match member.roles(&ctx.cache) {
         Some(roles) => {
             for role in roles {
                 if CONFIG.colors.contains_key(role.name.as_str()) {
-                    m.remove_role(ctx.http(), role.id).await?;
+                    member.remove_role(ctx.http(), role.id).await?;
                     break;
                 }
             }
@@ -47,30 +40,22 @@ pub async fn random_color(ctx: &Context, member: &Member) -> Result<(), Error> {
         None => {}
     };
 
-    m.add_role(&ctx.http, role_id).await?;
-    Ok(())
+    Ok(member.add_role(&ctx.http, role_id).await?)
 }
 
 pub async fn process_color(ctx: PoiseContext<'_>, choice: String) -> Result<(), Error> {
     let guild = match ctx.guild() {
         Some(guild) => guild.clone(),
-        None => {
-            eprintln!("Can't find server ...");
-            return Ok(())
-        }
+        None => return Ok(eprintln!("Can't find server ..."))
     };
 
-    let r = EditRole::new().name(choice.as_str()).colour(CONFIG.colors[&choice]).permissions(Permissions::empty());
-    let role_id = match guild.role_by_name(choice.as_str()) {
+    let r = EditRole::new().name(&choice).colour(CONFIG.colors[&choice]).permissions(Permissions::empty());
+    let role_id = match guild.role_by_name(&choice) {
         Some(role) => role.id,
-        None => {
-            let r = guild.create_role(ctx.http(), r).await?;
-
-            r.id
-        }
+        None => guild.create_role(ctx.http(), r).await?.id
     };
 
-    let m = ctx.author_member().await.unwrap().to_mut().clone();
+    let m = ctx.author_member().await.unwrap();
     match m.roles(ctx.cache()) {
         Some(roles) => {
             for role in roles {
@@ -83,6 +68,5 @@ pub async fn process_color(ctx: PoiseContext<'_>, choice: String) -> Result<(), 
         None => {}
     };
 
-    m.add_role(ctx.http(), role_id).await?;
-    Ok(())
+    Ok(m.add_role(ctx.http(), role_id).await?)
 }
