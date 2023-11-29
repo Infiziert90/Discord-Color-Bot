@@ -14,13 +14,12 @@ fn rand_hash<K: Eq + Hash, V>(hash: &HashMap<K, V>) -> &K {
 }
 
 pub async fn random_color(ctx: &Context, member: &Member) -> Result<(), Error> {
-    let choice = rand_hash(&CONFIG.colors);
-
     let guild = match member.guild_id.to_guild_cached(&ctx.cache) {
         Some(g) => g.clone(),
         None => return Ok(()),
     };
 
+    let choice = rand_hash(&CONFIG.colors);
     let r = EditRole::new().name(choice).colour(CONFIG.colors[choice]).permissions(Permissions::empty());
     let role_id = match guild.role_by_name(choice) {
         Some(role) => role.id,
@@ -29,11 +28,8 @@ pub async fn random_color(ctx: &Context, member: &Member) -> Result<(), Error> {
 
     match member.roles(&ctx.cache) {
         Some(roles) => {
-            for role in roles {
-                if CONFIG.colors.contains_key(role.name.as_str()) {
-                    member.remove_role(ctx.http(), role.id).await?;
-                    break;
-                }
+            for role in roles.iter().filter(|role| CONFIG.colors.contains_key(&role.name)) {
+                member.remove_role(ctx.http(), role.id).await?
             }
         }
         None => {}
@@ -57,11 +53,8 @@ pub async fn process_color(ctx: PoiseContext<'_>, choice: &str) -> Result<(), Er
     let m = ctx.author_member().await.unwrap();
     match m.roles(ctx.cache()) {
         Some(roles) => {
-            for role in roles {
-                if CONFIG.colors.contains_key(role.name.as_str()) {
-                    m.remove_role(ctx.http(), role.id).await?;
-                    break;
-                }
+            for role in roles.iter().filter(|role| CONFIG.colors.contains_key(&role.name)) {
+                m.remove_role(ctx.http(), role.id).await?;
             }
         }
         None => {}
