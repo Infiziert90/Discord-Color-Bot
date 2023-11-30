@@ -49,18 +49,18 @@ pub async fn preview(
     #[autocomplete = "autocomplete_name"]
     choice: String,
 ) -> Result<(), Error> {
-    if let Some(color) = CONFIG.colors.get(&choice) {
-        let paths = [CreateAttachment::bytes(create_image(&color), format!("{choice}.png"))];
-        ctx.send(CreateReply {
-            content: Some("Preview:".into()),
-            attachments: paths.to_vec().into(),
-            ..Default::default()
-        })
-        .await?;
-    } else {
-        ctx.say("Unknown color ...").await?;
+    match CONFIG.colors.get(&choice) {
+        Some(color) => {
+            let paths = [CreateAttachment::bytes(create_image(&color), format!("{choice}.png"))];
+            ctx.send(CreateReply {
+                content: Some("Preview:".into()),
+                attachments: paths.to_vec().into(),
+                ..Default::default()
+            })
+            .await?;
+        },
+        None => ctx.say("Unknown color ...").await?,
     }
-
     Ok(())
 }
 
