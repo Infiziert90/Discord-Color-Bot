@@ -122,7 +122,7 @@ async fn main() {
         return eprintln!("Your bot token is still the default, please change it in the config.yaml");
     }
 
-    let intents = GatewayIntents::all() ^ GatewayIntents::GUILD_PRESENCES;
+    let intents = GatewayIntents::non_privileged() | GatewayIntents::MESSAGE_CONTENT | GatewayIntents::GUILD_MEMBERS;
     let options = poise::FrameworkOptions {
         commands: vec![commands::color(), commands::preview(), commands::help()],
         prefix_options: poise::PrefixFrameworkOptions {
