@@ -1,88 +1,66 @@
-use crate::{Error, PoiseContext};
-use crate::config::CONFIG;
+use crate::{config::CONFIG, Error, PoiseContext};
 
-use std::collections::HashMap;
-use std::hash::Hash;
-use rand::thread_rng;
-use serenity::http::CacheHttp;
-use rand::seq::{IteratorRandom};
-use serenity::all::{Member, Permissions};
-use serenity::builder::EditRole;
-use serenity::prelude::Context;
+use rand::{seq::IteratorRandom, thread_rng};
+use serenity::{
+    all::{Member, Permissions},
+    builder::EditRole,
+    http::CacheHttp,
+    prelude::Context,
+};
+use std::{collections::HashMap, hash::Hash};
 
 fn rand_hash<K: Eq + Hash, V>(hash: &HashMap<K, V>) -> &K {
-    let key = hash.keys().choose(&mut thread_rng()).unwrap();
-
-    key
+    hash.keys().choose(&mut thread_rng()).unwrap()
 }
 
 pub async fn random_color(ctx: &Context, member: &Member) -> Result<(), Error> {
-    let choice = rand_hash(&CONFIG.colors);
-
     let guild = match member.guild_id.to_guild_cached(&ctx.cache) {
         Some(g) => g.clone(),
-        None => return Ok(())
+        None => return Ok(()),
     };
 
-    let r = EditRole::new().name(choice.as_str()).colour(CONFIG.colors[choice]).permissions(Permissions::empty());
-    let role_id = match guild.role_by_name(choice.as_str()) {
+    let choice = rand_hash(&CONFIG.colors);
+    let role_id = match guild.role_by_name(choice) {
         Some(role) => role.id,
         None => {
-            let r = guild.create_role(&ctx.http, r).await.unwrap();
+            guild
+            .create_role(&ctx.http, EditRole::new().name(choice).colour(CONFIG.colors[choice]).permissions(Permissions::empty()))
+            .await?
+            .id
+        },
+    };
 
-            r.id
+    if let Some(roles) = member.roles(&ctx.cache) {
+        for role in roles.iter().filter(|role| CONFIG.colors.contains_key(&role.name)) {
+            member.remove_role(ctx.http(), role.id).await?
         }
     };
 
-    let m = member.clone();
-    match member.roles(&ctx.cache) {
-        Some(roles) => {
-            for role in roles {
-                if CONFIG.colors.contains_key(role.name.as_str()) {
-                    m.remove_role(ctx.http(), role.id).await?;
-                    break;
-                }
-            }
-        }
-        None => {}
-    };
-
-    m.add_role(&ctx.http, role_id).await?;
-    Ok(())
+    Ok(member.add_role(&ctx.http, role_id).await?)
 }
 
-pub async fn process_color(ctx: PoiseContext<'_>, choice: String) -> Result<(), Error> {
+pub async fn process_color(ctx: PoiseContext<'_>, choice: &str) -> Result<(), Error> {
     let guild = match ctx.guild() {
         Some(guild) => guild.clone(),
-        None => {
-            eprintln!("Can't find server ...");
-            return Ok(())
-        }
+        None => return Ok(eprintln!("Can't find server ...")),
     };
 
-    let r = EditRole::new().name(choice.as_str()).colour(CONFIG.colors[&choice]).permissions(Permissions::empty());
-    let role_id = match guild.role_by_name(choice.as_str()) {
+    let role_id = match guild.role_by_name(choice) {
         Some(role) => role.id,
         None => {
-            let r = guild.create_role(ctx.http(), r).await?;
+            guild
+            .create_role(ctx.http(), EditRole::new().name(choice).colour(CONFIG.colors[choice]).permissions(Permissions::empty()))
+            .await?
+            .id
+        },
+    };
 
-            r.id
+    let m = ctx.author_member().await.unwrap();
+    if let Some(roles) = m.roles(ctx.cache()) {
+        for role in roles.iter().filter(|role| CONFIG.colors.contains_key(&role.name)) {
+            m.remove_role(ctx.http(), role.id).await?;
         }
     };
 
-    let m = ctx.author_member().await.unwrap().to_mut().clone();
-    match m.roles(ctx.cache()) {
-        Some(roles) => {
-            for role in roles {
-                if CONFIG.colors.contains_key(role.name.as_str()) {
-                    m.remove_role(ctx.http(), role.id).await?;
-                    break;
-                }
-            }
-        }
-        None => {}
-    };
-
-    m.add_role(ctx.http(), role_id).await?;
-    Ok(())
+    Ok(m.add_role(ctx.http(), role_id).await?)
 }
