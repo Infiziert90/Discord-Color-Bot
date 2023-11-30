@@ -20,19 +20,20 @@ pub async fn random_color(ctx: &Context, member: &Member) -> Result<(), Error> {
     };
 
     let choice = rand_hash(&CONFIG.colors);
-    let r = EditRole::new().name(choice).colour(CONFIG.colors[choice]).permissions(Permissions::empty());
     let role_id = match guild.role_by_name(choice) {
         Some(role) => role.id,
-        None => guild.create_role(&ctx.http, r).await.unwrap().id,
+        None => {
+            guild
+            .create_role(&ctx.http, EditRole::new().name(choice).colour(CONFIG.colors[choice]).permissions(Permissions::empty()))
+            .await?
+            .id
+        },
     };
 
-    match member.roles(&ctx.cache) {
-        Some(roles) => {
-            for role in roles.iter().filter(|role| CONFIG.colors.contains_key(&role.name)) {
-                member.remove_role(ctx.http(), role.id).await?
-            }
+    if let Some(roles) = member.roles(&ctx.cache) {
+        for role in roles.iter().filter(|role| CONFIG.colors.contains_key(&role.name)) {
+            member.remove_role(ctx.http(), role.id).await?
         }
-        None => {}
     };
 
     Ok(member.add_role(&ctx.http, role_id).await?)
@@ -44,20 +45,21 @@ pub async fn process_color(ctx: PoiseContext<'_>, choice: &str) -> Result<(), Er
         None => return Ok(eprintln!("Can't find server ...")),
     };
 
-    let r = EditRole::new().name(choice).colour(CONFIG.colors[choice]).permissions(Permissions::empty());
     let role_id = match guild.role_by_name(choice) {
         Some(role) => role.id,
-        None => guild.create_role(ctx.http(), r).await?.id,
+        None => {
+            guild
+            .create_role(ctx.http(), EditRole::new().name(choice).colour(CONFIG.colors[choice]).permissions(Permissions::empty()))
+            .await?
+            .id
+        },
     };
 
     let m = ctx.author_member().await.unwrap();
-    match m.roles(ctx.cache()) {
-        Some(roles) => {
-            for role in roles.iter().filter(|role| CONFIG.colors.contains_key(&role.name)) {
-                m.remove_role(ctx.http(), role.id).await?;
-            }
+    if let Some(roles) = m.roles(ctx.cache()) {
+        for role in roles.iter().filter(|role| CONFIG.colors.contains_key(&role.name)) {
+            m.remove_role(ctx.http(), role.id).await?;
         }
-        None => {}
     };
 
     Ok(m.add_role(ctx.http(), role_id).await?)
