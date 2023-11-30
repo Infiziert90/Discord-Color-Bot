@@ -13,14 +13,17 @@ use serenity::{
     builder::{CreateMessage, EditRole},
     FullEvent,
 };
-use std::{sync::Arc, time::Duration};
+use std::{
+    sync::{Arc, OnceLock},
+    time::Duration,
+};
 
 type Error = Box<dyn std::error::Error + Send + Sync>;
 type PoiseContext<'a> = poise::Context<'a, Data, Error>;
 
-pub struct Data {}
+pub struct Data;
 
-static mut FIRST_TIME: bool = true;
+static FIRST_TIME: OnceLock<bool> = OnceLock::new();
 
 async fn on_error(error: poise::FrameworkError<'_, Data, Error>) {
     match error {
@@ -45,7 +48,7 @@ async fn event_handler(
             println!("Logged in as {}", data_about_bot.user.name);
             ctx.set_activity(Some(ActivityData::playing("Perfect Color!")));
 
-            if unsafe { FIRST_TIME } {
+            if FIRST_TIME.set(true).is_ok() {
                 for guild in ctx.cache.guilds() {
                     let existing_roles: Vec<String> =
                         guild.roles(&ctx.http).await?.values().map(|role| role.name.clone()).collect();
@@ -62,12 +65,9 @@ async fn event_handler(
                                     );
                                     break;
                                 }
-                            };
+                            }
                         }
                     }
-                }
-                unsafe {
-                    FIRST_TIME = false;
                 }
             }
             println!("Bot is ready")
@@ -142,7 +142,7 @@ async fn main() {
                 poise::builtins::register_globally(ctx, &framework.options().commands)
                     .await
                     .map_err(|e| e.into())
-                    .map(|_| Data {})
+                    .map(|_| Data)
             })
         })
         .options(options)
